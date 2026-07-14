@@ -1405,6 +1405,20 @@ export default function StockInsightModal(props: {
                   <Copy className="w-3.5 h-3.5" />
                   <span>复制</span>
                 </Button>
+                {/* 问 AI:匿名也可用(chat 已公开+每IP限流),放在 isOwner 门控之外 */}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-8 px-2.5"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('panwatch-open-chat', {
+                      detail: { symbol, market, stockName: resolvedName, pageContext: buildPageContext() }
+                    }))
+                    props.onOpenChange(false)
+                  }}
+                >
+                  <Sparkles className="w-3.5 h-3.5 mr-1" /> 问 AI
+                </Button>
                 {isOwner && (
                 <>
                 <Button
@@ -1420,19 +1434,6 @@ export default function StockInsightModal(props: {
                 <StockPriceAlertPanel mode="inline" symbol={symbol} market={market} stockName={resolvedName} />
                 <Button variant="secondary" size="sm" className="h-8 px-2.5" onClick={handleSetAlert} disabled={alerting}>
                   {alerting ? '设置中...' : '一键设提醒'}
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="h-8 px-2.5"
-                  onClick={() => {
-                    window.dispatchEvent(new CustomEvent('panwatch-open-chat', {
-                      detail: { symbol, market, stockName: resolvedName, pageContext: buildPageContext() }
-                    }))
-                    props.onOpenChange(false)
-                  }}
-                >
-                  <Sparkles className="w-3.5 h-3.5 mr-1" /> 问 AI
                 </Button>
                 </>
                 )}
@@ -1455,6 +1456,20 @@ export default function StockInsightModal(props: {
               <Button variant="secondary" size="sm" className="h-8 px-2.5 shrink-0" onClick={() => handleCopyShareText()}>
                 <Copy className="w-3.5 h-3.5" />
               </Button>
+              {/* 问 AI:匿名也可用,放在 isOwner 门控之外 */}
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 px-2.5 shrink-0"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('panwatch-open-chat', {
+                    detail: { symbol, market, stockName: resolvedName, pageContext: buildPageContext() }
+                  }))
+                  props.onOpenChange(false)
+                }}
+              >
+                <Sparkles className="w-3.5 h-3.5 mr-1" /> 问 AI
+              </Button>
               {isOwner && (
               <>
               <Button
@@ -1469,19 +1484,6 @@ export default function StockInsightModal(props: {
               <StockPriceAlertPanel mode="inline" symbol={symbol} market={market} stockName={resolvedName} />
               <Button variant="secondary" size="sm" className="h-8 px-2.5 shrink-0" onClick={handleSetAlert} disabled={alerting}>
                 {alerting ? '设置中...' : '一键设提醒'}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="h-8 px-2.5 shrink-0"
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('panwatch-open-chat', {
-                    detail: { symbol, market, stockName: resolvedName, pageContext: buildPageContext() }
-                  }))
-                  props.onOpenChange(false)
-                }}
-              >
-                <Sparkles className="w-3.5 h-3.5 mr-1" /> 问 AI
               </Button>
               </>
               )}

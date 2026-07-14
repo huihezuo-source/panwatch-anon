@@ -73,6 +73,9 @@ app.include_router(
 )
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(factors.router, prefix="/api/factors", tags=["factors"])
+# chat 公开供匿名用「问 AI / AI 助手」。send_message 端点内做每 IP 限流(烧 DeepSeek),
+# list_conversations 对匿名返回空(对话无 user_id,防跨访客串对话)。
+app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 
 # ============================================================================
 # 需要登录的路由(仅站长)——含 AI 服务商密钥、站点设置、数据源配置、
@@ -138,12 +141,6 @@ app.include_router(
     paper_trading.router,
     prefix="/api/paper-trading",
     tags=["paper-trading"],
-    dependencies=protected,
-)
-app.include_router(
-    chat.router,
-    prefix="/api/chat",
-    tags=["chat"],
     dependencies=protected,
 )
 

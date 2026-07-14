@@ -5,7 +5,7 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -27,6 +27,60 @@ from src.web.models import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# ============================================================================
+# 匿名公开版:chat 端点公开供访客用「问 AI / AI 助手」。两道防护:
+# - send_message 每 IP 限流(每条消息都调 DeepSeek,防被当免费 API 刷)
+# - list_conversations 对匿名返回空(对话表无 user_id,否则访客能看到彼此的对话)
+# 登录站长不受限、可看完整对话列表。单 worker,进程内内存计数。
+# ============================================================================
+import threading
+import time as _time_mod
+from collections import deque
+
+_CHAT_MSG_PER_IP_MAX = 30       # 每 IP 每小时最多发多少条消息
+_CHAT_MSG_WINDOW = 3600
+_chat_ip_buckets: dict[str, deque] = {}
+_chat_rate_lock = threading.Lock()
+
+
+def _chat_client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for") or ""
+    if xff:
+        return xff.split(",")[0].strip()
+    xri = request.headers.get("x-real-ip")
+    if xri:
+        return xri.strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _chat_is_authed(request: Request) -> bool:
+    """请求是否带有效登录 token(站长)。"""
+    try:
+        auth = request.headers.get("authorization") or ""
+        if not auth.lower().startswith("bearer "):
+            return False
+        from src.web.api.auth import verify_token
+        return bool(verify_token(auth.split(" ", 1)[1].strip()))
+    except Exception:
+        return False
+
+
+def _chat_rate_ok(ip: str) -> tuple[bool, str]:
+    now = _time_mod.time()
+    with _chat_rate_lock:
+        dq = _chat_ip_buckets.setdefault(ip, deque())
+        while dq and now - dq[0] > _CHAT_MSG_WINDOW:
+            dq.popleft()
+        if len(dq) >= _CHAT_MSG_PER_IP_MAX:
+            wait_min = int((_CHAT_MSG_WINDOW - (now - dq[0])) / 60) + 1
+            return False, f"AI 对话请求过于频繁(每小时上限 {_CHAT_MSG_PER_IP_MAX} 条),请约 {wait_min} 分钟后再试"
+        dq.append(now)
+        if len(_chat_ip_buckets) > 5000:
+            for k in [k for k, v in _chat_ip_buckets.items() if not v]:
+                _chat_ip_buckets.pop(k, None)
+    return True, ""
 
 SYSTEM_PROMPT = """你是 PanWatch 的 AI 投资助手。
 
@@ -391,9 +445,14 @@ def create_conversation(
 
 @router.get("/conversations")
 def list_conversations(
+    request: Request,
     limit: int = Query(30, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
+    # 对话表无 user_id,匿名公开版下若返回全部,访客能看到彼此的历史对话 → 匿名一律返回空。
+    # 匿名访客只用当前会话内新建的对话(前端内存里),不落历史列表。站长登录后看完整列表。
+    if not _chat_is_authed(request):
+        return []
     rows = (
         db.query(ChatConversation)
         .order_by(ChatConversation.updated_at.desc())
@@ -458,8 +517,14 @@ def delete_conversation(conversation_id: int, db: Session = Depends(get_db)):
 async def send_message(
     conversation_id: int,
     body: SendMessageBody,
+    request: Request,
 ):
     """发送消息并获取 AI 回复。"""
+    # 匿名访客每 IP 限流(每条消息都烧 DeepSeek);登录站长不限。
+    if not _chat_is_authed(request):
+        ok, msg = _chat_rate_ok(_chat_client_ip(request))
+        if not ok:
+            raise HTTPException(status_code=429, detail=msg)
     db = SessionLocal()
     try:
         conv = db.query(ChatConversation).filter(ChatConversation.id == conversation_id).first()
