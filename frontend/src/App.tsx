@@ -102,7 +102,6 @@ function App() {
                 <TrendingUp className="w-4 h-4 text-white" />
               </div>
               <span className="text-[15px] font-bold text-foreground">Huipingce</span>
-              {version && <span className="text-[11px] text-muted-foreground/60 font-normal">v{version}</span>}
             </NavLink>
 
             {/* Nav Links */}
@@ -161,7 +160,6 @@ function App() {
                 <TrendingUp className="w-3.5 h-3.5 text-white" />
               </div>
               <span className="text-[14px] font-bold text-foreground">Huipingce</span>
-              {version && <span className="text-[10px] text-muted-foreground/60 font-normal">v{version}</span>}
             </NavLink>
             {/* 匿名公开版:隐藏 GitHub / 日志 / 账户设置等管理入口 */}
             {false && (
