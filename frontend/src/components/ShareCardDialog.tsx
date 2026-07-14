@@ -117,9 +117,9 @@ export default function ShareCardDialog({
                   flexShrink: 0,
                 }}
               >
-                盯
+                汇
               </span>
-              <span>盯盘侠 PanWatch</span>
+              <span>汇评测 Huipingce</span>
               <span style={{ color: '#cbd5e1', fontWeight: 400 }}>·</span>
               <span style={{ color: '#64748b', fontWeight: 500, fontSize: 12.5 }}>
                 github.com/TNT-Likely/PanWatch
