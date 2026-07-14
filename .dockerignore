@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Data
+data/
+*.db
+*.sqlite
+
+# Build
+frontend/dist/
+static/
+
+# 汇合作定制镜像(Dockerfile.huihezuo):把本地预构建的前端 dist 塞进镜像,
+# 需在此重新放行 frontend/dist(官方 Dockerfile 在镜像内自建 dist,不受影响)。
+!frontend/dist
+!frontend/dist/**
+
+# Docs
+.claude/
+docs/
+*.md
+!README.md
+
+# Misc
+.env
+.env.*
+*.log

@@ -1,0 +1,19 @@
+# 汇合作定制版 PanWatch 镜像:在官方镜像基础上叠加「匿名公开版」改动。
+# 基底 = 官方预构建镜像(含完整 Python 依赖 + 数据/prompts),只覆盖前端静态 + 改过的后端文件。
+#
+# 构建(在仓库根目录):
+#   docker build -f Dockerfile.huihezuo -t panwatch-anon:latest .
+# 前置:先 cd frontend && ./node_modules/.bin/tsc -b && ./node_modules/.bin/vite build 生成 frontend/dist
+FROM sunxiao0721/panwatch:latest
+
+# 1) 前端:用本地新构建覆盖静态资源(去登录墙 / 挡 key / 隐藏仅站长按钮 /
+#    切股票串台修复 / 黑客帝国式实时进度台 / 实时指数 / 搜索框等)。
+#    先清空避免旧 hash 资源残留。
+RUN rm -rf /app/static
+COPY frontend/dist/ /app/static/
+
+# 2) 后端:覆盖改动过的两个文件。
+#    app.py     —— 路由拆分公开/仅站长(providers 含 DeepSeek key 保持登录保护)
+#    stocks.py  —— 深度分析同日缓存 + 每 IP 限流 + 本月预算闸
+COPY src/web/app.py /app/src/web/app.py
+COPY src/web/api/stocks.py /app/src/web/api/stocks.py
