@@ -1560,6 +1560,8 @@ export default function StockInsightModal(props: {
                       <div className="rounded bg-accent/15 px-2 py-1.5"><div className="text-[10px] text-muted-foreground">市盈率</div><div className="font-mono">{quote?.pe_ratio != null ? Number(quote.pe_ratio).toFixed(2) : '--'}</div></div>
                       <div className="rounded bg-accent/15 px-2 py-1.5"><div className="text-[10px] text-muted-foreground">总市值</div><div className="font-mono">{formatMarketCap(quote?.total_market_value, market)}</div></div>
                     </div>
+                    {/* 持仓信息 + 加仓测算:仅在确有持仓时显示;匿名/未持仓不显示「未在持仓中」和空仓建仓测算 */}
+                    {holdingAgg && (
                     <div className="mt-3 border-t border-border/50 pt-3">
                       <div className="text-[11px] text-muted-foreground mb-2">持仓信息</div>
                       {holdingAgg ? (
@@ -1606,6 +1608,7 @@ export default function StockInsightModal(props: {
                         currentPrice={quote?.current_price ?? null}
                       />
                     </div>
+                    )}
                   </div>
 
                   <div className="card p-4 h-full">
@@ -1737,6 +1740,33 @@ export default function StockInsightModal(props: {
                         news.slice(0, 3).map((item, idx) => (
                           <a
                             key={`${item.publish_time || 'n'}-${idx}`}
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block rounded-lg border border-border/30 bg-accent/10 p-2.5 hover:bg-accent/20 transition-colors"
+                          >
+                            <div className="text-[12px] text-foreground line-clamp-2">{item.title}</div>
+                            <div className="mt-1 text-[10px] text-muted-foreground">{item.source_label || item.source} · {formatTime(item.publish_time)}</div>
+                          </a>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  {/* 公告:填充右侧空位,展示最新公告(公开数据) */}
+                  <div className="card p-4 h-full flex flex-col">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-[12px] text-muted-foreground">公告</div>
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px] text-muted-foreground" onClick={() => setTab('announcements')}>
+                        更多
+                      </Button>
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      {announcements.length === 0 ? (
+                        <div className="text-[12px] text-muted-foreground py-6">暂无公告</div>
+                      ) : (
+                        announcements.slice(0, 3).map((item, idx) => (
+                          <a
+                            key={`${item.publish_time || 'a'}-${idx}`}
                             href={item.url}
                             target="_blank"
                             rel="noreferrer"
