@@ -77,7 +77,7 @@ export default function AddPositionCalculator({
   currentPrice,
 }: Props) {
   const { toast } = useToast()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)  // 默认展开(用户仍可点标题收起)
   const [mode, setMode] = useState<'shares' | 'amount'>('shares')
   const [addRaw, setAddRaw] = useState('')
   const [priceRaw, setPriceRaw] = useState('')
