@@ -33,13 +33,15 @@ const navItems = [
   { to: '/datasources', icon: Database, label: '数据源' },
   { to: '/settings', icon: Settings, label: '设置' },
 ]
-// 匿名公开版:只保留公共功能(首页/机会),隐藏需登录的个人功能(持仓/模拟盘/提醒)及管理项(Agent/历史/数据源/设置)
+// 匿名公开版:主导航只保留公共功能(首页/机会)。个人/管理项(持仓/模拟盘/提醒/Agent/历史/
+// 数据源/设置)收进「更多」下拉,且整个下拉仅登录站长可见(见下方 isAuthenticated 门控)。
 const PUBLIC_NAV_PATHS = ['/', '/opportunities']
 const publicNavItems = navItems.filter((n) => PUBLIC_NAV_PATHS.includes(n.to))
+const adminNavItems = navItems.filter((n) => !PUBLIC_NAV_PATHS.includes(n.to))
 const desktopPrimaryNavItems = publicNavItems
-const desktopMoreNavItems: typeof navItems = []
+const desktopMoreNavItems = adminNavItems
 const mobilePrimaryNavItems = publicNavItems
-const mobileMoreNavItems: typeof navItems = []
+const mobileMoreNavItems = adminNavItems
 
 function App() {
   const { mode, setMode } = useTheme()
@@ -136,8 +138,8 @@ function App() {
               })}
             </nav>
 
-            {/* 匿名公开版:隐藏 GitHub / 日志 / 账户设置等管理入口 */}
-            {false && (
+            {/* 匿名公开版:管理入口(数据源/设置/日志/账户等)仅登录站长可见 */}
+            {isAuthenticated() && (
             <div className="flex items-center gap-1.5 px-1.5 py-1 rounded-2xl bg-accent/20 border border-border/40">
               <AccountMenu
                 navItems={desktopMoreNavItems}
@@ -161,8 +163,8 @@ function App() {
               </div>
               <span className="text-[14px] font-bold text-foreground">Huipingce</span>
             </NavLink>
-            {/* 匿名公开版:隐藏 GitHub / 日志 / 账户设置等管理入口 */}
-            {false && (
+            {/* 匿名公开版:管理入口(数据源/设置/日志/账户等)仅登录站长可见 */}
+            {isAuthenticated() && (
             <div className="flex items-center gap-1.5 px-1.5 py-1 rounded-2xl bg-accent/20 border border-border/40">
               <AccountMenu
                 size="sm"
