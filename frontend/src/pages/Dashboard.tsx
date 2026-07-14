@@ -164,7 +164,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     load()
-    if (!localStorage.getItem('panwatch_onboarding_completed')) setShowOnboarding(true)
+    // 引导弹窗只讲自选股/通知/配置AI等站长功能,匿名访客看着会懵 → 仅登录站长首次显示
+    if (isAuthenticated() && !localStorage.getItem('panwatch_onboarding_completed')) setShowOnboarding(true)
   }, [load])
 
   // 首页大盘指数实时跳动:每 4 秒轻量轮询一次(只更新指数,不重跑首屏)
