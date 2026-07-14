@@ -110,8 +110,17 @@ export default function ChatWidget() {
       setStockContext(null)
       setSuggestedQuestions([])
       setConversations((prev) => [conv, ...prev])
-    } catch {
-      // ignore
+    } catch (e) {
+      // 匿名超出「每24h 10次对话」等限制时,把后端 429 原因展示出来(否则按钮像没反应)
+      setActiveConvId(null)
+      setView('chat')
+      setSuggestedQuestions([])
+      setMessages([{
+        id: Date.now(),
+        role: 'assistant',
+        content: e instanceof Error && e.message ? e.message : '发起对话失败，请稍后再试',
+        created_at: new Date().toISOString(),
+      }])
     }
   }, [])
 
@@ -146,7 +155,15 @@ export default function ChatWidget() {
         setActiveConvId(conv.id)
         setConversations((prev) => [conv, ...prev])
         setView('chat')
-      } catch {
+      } catch (e) {
+        // 发起对话被限流(如每24h 10次上限)→ 展示原因,不静默吞掉用户刚输入的问题
+        setView('chat')
+        setMessages((prev) => [...prev, {
+          id: Date.now(),
+          role: 'assistant',
+          content: e instanceof Error && e.message ? e.message : '发起对话失败，请稍后再试',
+          created_at: new Date().toISOString(),
+        }])
         return
       }
     }

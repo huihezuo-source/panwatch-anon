@@ -39,9 +39,15 @@ import threading
 import time as _time_mod
 from collections import deque
 
+# 两类限流(都只对匿名生效,登录站长不限):
+#  - 发起对话:每 IP 每 24h 最多 10 次(限制访客一天能开几个新会话)
+#  - 发消息  :每 IP 每小时最多 30 条(每条都烧 DeepSeek,真正的成本闸,防单会话刷爆)
+_CHAT_CONV_PER_IP_MAX = 10      # 每 IP 每 24h 最多发起多少次新对话
+_CHAT_CONV_WINDOW = 86400
 _CHAT_MSG_PER_IP_MAX = 30       # 每 IP 每小时最多发多少条消息
 _CHAT_MSG_WINDOW = 3600
-_chat_ip_buckets: dict[str, deque] = {}
+_chat_conv_buckets: dict[str, deque] = {}
+_chat_msg_buckets: dict[str, deque] = {}
 _chat_rate_lock = threading.Lock()
 
 
@@ -67,20 +73,20 @@ def _chat_is_authed(request: Request) -> bool:
         return False
 
 
-def _chat_rate_ok(ip: str) -> tuple[bool, str]:
+def _rate_ok(buckets: dict, ip: str, max_n: int, window: int) -> tuple[bool, int]:
+    """滑动窗口限流。未超→(True,0)并记一次;超了→(False, 还需等待的分钟数)。"""
     now = _time_mod.time()
     with _chat_rate_lock:
-        dq = _chat_ip_buckets.setdefault(ip, deque())
-        while dq and now - dq[0] > _CHAT_MSG_WINDOW:
+        dq = buckets.setdefault(ip, deque())
+        while dq and now - dq[0] > window:
             dq.popleft()
-        if len(dq) >= _CHAT_MSG_PER_IP_MAX:
-            wait_min = int((_CHAT_MSG_WINDOW - (now - dq[0])) / 60) + 1
-            return False, f"AI 对话请求过于频繁(每小时上限 {_CHAT_MSG_PER_IP_MAX} 条),请约 {wait_min} 分钟后再试"
+        if len(dq) >= max_n:
+            return False, int((window - (now - dq[0])) / 60) + 1
         dq.append(now)
-        if len(_chat_ip_buckets) > 5000:
-            for k in [k for k, v in _chat_ip_buckets.items() if not v]:
-                _chat_ip_buckets.pop(k, None)
-    return True, ""
+        if len(buckets) > 5000:
+            for k in [k for k, v in buckets.items() if not v]:
+                buckets.pop(k, None)
+    return True, 0
 
 SYSTEM_PROMPT = """你是 PanWatch 的 AI 投资助手。
 
@@ -423,9 +429,21 @@ def suggested_questions(
 
 @router.post("/conversations")
 def create_conversation(
+    request: Request,
     body: CreateConversationBody | None = None,
     db: Session = Depends(get_db),
 ):
+    # 匿名访客每 IP 每 24h 最多发起 10 次新对话;登录站长不限。
+    if not _chat_is_authed(request):
+        ok, _wait = _rate_ok(
+            _chat_conv_buckets, _chat_client_ip(request),
+            _CHAT_CONV_PER_IP_MAX, _CHAT_CONV_WINDOW,
+        )
+        if not ok:
+            raise HTTPException(
+                status_code=429,
+                detail=f"今日 AI 对话次数已达上限(每 24 小时最多 {_CHAT_CONV_PER_IP_MAX} 次),请明天再试",
+            )
     conv = ChatConversation(
         stock_symbol=body.stock_symbol if body else None,
         stock_market=body.stock_market if body else None,
@@ -522,9 +540,15 @@ async def send_message(
     """发送消息并获取 AI 回复。"""
     # 匿名访客每 IP 限流(每条消息都烧 DeepSeek);登录站长不限。
     if not _chat_is_authed(request):
-        ok, msg = _chat_rate_ok(_chat_client_ip(request))
+        ok, wait = _rate_ok(
+            _chat_msg_buckets, _chat_client_ip(request),
+            _CHAT_MSG_PER_IP_MAX, _CHAT_MSG_WINDOW,
+        )
         if not ok:
-            raise HTTPException(status_code=429, detail=msg)
+            raise HTTPException(
+                status_code=429,
+                detail=f"AI 对话请求过于频繁(每小时上限 {_CHAT_MSG_PER_IP_MAX} 条),请约 {wait} 分钟后再试",
+            )
     db = SessionLocal()
     try:
         conv = db.query(ChatConversation).filter(ChatConversation.id == conversation_id).first()
