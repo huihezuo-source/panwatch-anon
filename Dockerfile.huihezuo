@@ -12,8 +12,10 @@ FROM sunxiao0721/panwatch:latest
 RUN rm -rf /app/static
 COPY frontend/dist/ /app/static/
 
-# 2) 后端:覆盖改动过的两个文件。
+# 2) 后端:覆盖改动过的文件。
 #    app.py     —— 路由拆分公开/仅站长(providers 含 DeepSeek key 保持登录保护)
 #    stocks.py  —— 深度分析同日缓存 + 每 IP 限流 + 本月预算闸
+#    chat.py    —— 问AI/AI助手对匿名开放:send_message 每IP限流 + list 匿名返回空
 COPY src/web/app.py /app/src/web/app.py
 COPY src/web/api/stocks.py /app/src/web/api/stocks.py
+COPY src/web/api/chat.py /app/src/web/api/chat.py
