@@ -93,6 +93,64 @@ def _ta_rate_check_and_record(ip: str) -> tuple[bool, str]:
     return True, ""
 
 
+# ============================================================================
+# AI建议(intraday_monitor)防滥用:比深度分析便宜但公开站访客每开一只股票就生成一次,
+# 也走 DeepSeek。两道防护:① 同股票近 N 分钟已有建议 → 复用不重生成(所有访客共享);
+# ② 每 IP + 全局滑动窗口限流(登录站长不限)。
+# ============================================================================
+_INTRADAY_CACHE_MINUTES = 15    # 同股票 N 分钟内已有 intraday 建议 → 复用,不重新生成
+_INTRADAY_PER_IP_MAX = 20       # 每 IP 每小时最多触发多少次生成
+_INTRADAY_PER_IP_WINDOW = 3600
+_INTRADAY_GLOBAL_MAX = 120      # 全站每小时合计上限(预算闸角色,挡分布式刷)
+_INTRADAY_GLOBAL_WINDOW = 3600
+_intraday_ip_buckets: dict[str, deque] = {}
+_intraday_global_bucket: deque = deque()
+_intraday_rate_lock = threading.Lock()
+
+
+def _intraday_rate_check_and_record(ip: str) -> tuple[bool, str]:
+    """intraday 生成的滑动窗口限流:未超记一次返回 (True,"")，超了返回 (False, 提示)。"""
+    import time as _t
+    now = _t.time()
+    with _intraday_rate_lock:
+        while _intraday_global_bucket and now - _intraday_global_bucket[0] > _INTRADAY_GLOBAL_WINDOW:
+            _intraday_global_bucket.popleft()
+        if len(_intraday_global_bucket) >= _INTRADAY_GLOBAL_MAX:
+            return False, "当前 AI 建议请求较多,请稍后再试"
+        dq = _intraday_ip_buckets.setdefault(ip, deque())
+        while dq and now - dq[0] > _INTRADAY_PER_IP_WINDOW:
+            dq.popleft()
+        if len(dq) >= _INTRADAY_PER_IP_MAX:
+            return False, "AI 建议请求过于频繁,请稍后再试"
+        dq.append(now)
+        _intraday_global_bucket.append(now)
+        if len(_intraday_ip_buckets) > 5000:
+            for k in [k for k, v in _intraday_ip_buckets.items() if not v]:
+                _intraday_ip_buckets.pop(k, None)
+    return True, ""
+
+
+def _recent_intraday_suggestion_exists(db, symbol: str, market: str, minutes: int) -> bool:
+    """该股票近 minutes 分钟内是否已有 intraday_monitor 建议(用于缓存复用,免重复调 DeepSeek)。"""
+    try:
+        from datetime import datetime, timedelta
+        from src.web.models import StockSuggestion
+        cutoff = datetime.utcnow() - timedelta(minutes=minutes)
+        row = (
+            db.query(StockSuggestion.id)
+            .filter(
+                StockSuggestion.agent_name == "intraday_monitor",
+                StockSuggestion.stock_symbol == symbol,
+                StockSuggestion.stock_market == market,
+                StockSuggestion.created_at >= cutoff,
+            )
+            .first()
+        )
+        return row is not None
+    except Exception:
+        return False
+
+
 class StockCreate(BaseModel):
     symbol: str
     name: str
@@ -546,6 +604,29 @@ async def trigger_stock_agent(
             _ok, _msg = _ta_rate_check_and_record(_ip)
             if not _ok:
                 logger.info(f"[trigger 限流] IP={_ip} 被限流: {_msg}")
+                raise HTTPException(status_code=429, detail=_msg)
+
+    # === AI建议(intraday_monitor)防滥用:缓存复用(A) + 每IP/全局限流(B)===
+    if agent_name == "intraday_monitor" and not force_refresh:
+        # A) 缓存复用:该股票近 N 分钟已有建议 → 不重新生成,前端读现成的即可(所有访客共享一次)
+        if _recent_intraday_suggestion_exists(
+            db, trigger_stock.symbol, trigger_stock.market, _INTRADAY_CACHE_MINUTES
+        ):
+            logger.info(
+                f"[trigger intraday缓存] {trigger_stock.symbol} 近{_INTRADAY_CACHE_MINUTES}分钟已有建议,复用不重生成"
+            )
+            return {
+                "queued": False,
+                "trace_id": None,
+                "message": "近期已有 AI 建议,直接展示",
+                "deduplicated": True,
+                "cached": True,
+            }
+        # B) 每 IP + 全局限流(登录站长不限)
+        if not _is_owner_request(request):
+            _ok, _msg = _intraday_rate_check_and_record(_client_ip(request))
+            if not _ok:
+                logger.info(f"[trigger intraday限流] IP={_client_ip(request)} 被限流: {_msg}")
                 raise HTTPException(status_code=429, detail=_msg)
 
     # 预生成 trace_id,返回给前端用于轮询进度

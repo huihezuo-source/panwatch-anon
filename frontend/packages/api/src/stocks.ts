@@ -47,6 +47,9 @@ export interface TriggerStockAgentResponse {
   success?: boolean
   message: string
   queued?: boolean
+  /** 后端缓存/去重命中:未真正生成,前端读现成结果即可,不必轮询 */
+  cached?: boolean
+  deduplicated?: boolean
 }
 
 function withQuery(path: string, params: TriggerStockAgentOptions): string {

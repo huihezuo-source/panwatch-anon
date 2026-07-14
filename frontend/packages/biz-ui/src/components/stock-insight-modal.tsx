@@ -375,6 +375,8 @@ export default function StockInsightModal(props: {
   const [deepResult, setDeepResult] = useState<DeepAnalysisResult | null>(null)
   const [deepLoading, setDeepLoading] = useState(false)
   const [deepLoaded, setDeepLoaded] = useState(false)
+  // 打开弹窗时轻量探一下「这只股票有没有深度报告」,让「深度」tab 不点也能显示 (1)
+  const [hasDeepReport, setHasDeepReport] = useState(false)
   const [deepTriggering, setDeepTriggering] = useState(false)
   const [deepProgress, setDeepProgress] = useState<ProgressResponse | null>(null)
   const deepPollRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
@@ -846,6 +848,17 @@ export default function StockInsightModal(props: {
       loadDeepResult()
     }
   }, [tab, props.open, symbol, deepLoaded, deepLoading, loadDeepResult])
+
+  // 打开弹窗/切股票时,轻量探测是否已有深度报告 → 让「深度」tab 不点也显示 (1)
+  useEffect(() => {
+    if (!props.open || !symbol) { setHasDeepReport(false); return }
+    setHasDeepReport(false)
+    let cancelled = false
+    tradingAgentsApi.getLatestForStock(symbol)
+      .then((r) => { if (!cancelled) setHasDeepReport(!!r) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [props.open, symbol, market])
 
   useEffect(() => {
     if (!props.open || !symbol) return
@@ -1328,7 +1341,7 @@ export default function StockInsightModal(props: {
     setAutoSuggesting(true)
     try {
       // intraday_monitor 较 chart_analyst 更轻量、稳定，不依赖截图链路
-      await stocksApi.triggerAgent(0, 'intraday_monitor', {
+      const res = await stocksApi.triggerAgent(0, 'intraday_monitor', {
         allow_unbound: true,
         symbol,
         market,
@@ -1336,6 +1349,12 @@ export default function StockInsightModal(props: {
         bypass_throttle: true,
         bypass_market_hours: true,
       })
+      // 后端缓存/去重命中(近期已有建议或被限流复用):不会生成新建议,读一次现成的即可,不轮询
+      if (res && (res.cached || res.deduplicated)) {
+        await loadSuggestions()
+        setAutoSuggesting(false)
+        return
+      }
       // 异步模式：triggerAgent 立即返回，轮询等待建议生成
       const before = Date.now()
       const poll = setInterval(async () => {
@@ -1345,11 +1364,8 @@ export default function StockInsightModal(props: {
       await loadSuggestions()
       setTimeout(() => clearInterval(poll), 125_000)
       return
-    } catch (e) {
-      toast(
-        e instanceof Error ? e.message : '自动 AI 建议触发失败，可点击「一键设提醒」重试',
-        'error'
-      )
+    } catch {
+      // 自动后台触发(非用户主动)失败,如被限流:静默处理,用户仍能看到技术指标基础建议
       setAutoSuggesting(false)
     }
   }, [symbol, market, resolvedName, holdingLoaded, holdingLoadError, hasHolding, autoSuggesting, loadSuggestions, toast])
@@ -1499,7 +1515,7 @@ export default function StockInsightModal(props: {
                 { id: 'overview', label: '概览' },
                 { id: 'suggestions', label: `建议 (${suggestions.length})` },
                 // 匿名公开版:隐藏「报告」tab(盘前/盘后/新闻定时报告,需配置监控才有)
-                { id: 'deep', label: deepResult ? '深度 (1)' : '深度' },
+                { id: 'deep', label: (deepResult || hasDeepReport) ? '深度 (1)' : '深度' },
                 { id: 'kline', label: 'K线' },
                 { id: 'announcements', label: `公告 (${announcements.length})` },
                 { id: 'news', label: `新闻 (${news.length})` },
