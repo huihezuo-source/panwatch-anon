@@ -1560,11 +1560,11 @@ export default function StockInsightModal(props: {
                       <div className="rounded bg-accent/15 px-2 py-1.5"><div className="text-[10px] text-muted-foreground">市盈率</div><div className="font-mono">{quote?.pe_ratio != null ? Number(quote.pe_ratio).toFixed(2) : '--'}</div></div>
                       <div className="rounded bg-accent/15 px-2 py-1.5"><div className="text-[10px] text-muted-foreground">总市值</div><div className="font-mono">{formatMarketCap(quote?.total_market_value, market)}</div></div>
                     </div>
-                    {/* 持仓信息 + 加仓测算:仅在确有持仓时显示;匿名/未持仓不显示「未在持仓中」和空仓建仓测算 */}
-                    {holdingAgg && (
+                    {/* 加仓/建仓测算始终显示;持仓信息仅在确有持仓时显示(匿名/未持仓不再显示「未在持仓中」) */}
                     <div className="mt-3 border-t border-border/50 pt-3">
+                      {holdingAgg && (
+                      <>
                       <div className="text-[11px] text-muted-foreground mb-2">持仓信息</div>
-                      {holdingAgg ? (
                         <div className="grid grid-cols-2 gap-2 text-[12px]">
                           <div className="rounded bg-emerald-500/10 px-2 py-1.5">
                             <div className="text-[10px] text-muted-foreground">持仓数量</div>
@@ -1597,8 +1597,7 @@ export default function StockInsightModal(props: {
                             </div>
                           </div>
                         </div>
-                      ) : (
-                        <div className="text-[11px] text-muted-foreground">未在持仓中</div>
+                      </>
                       )}
                       <AddPositionCalculator
                         symbol={symbol}
@@ -1608,7 +1607,6 @@ export default function StockInsightModal(props: {
                         currentPrice={quote?.current_price ?? null}
                       />
                     </div>
-                    )}
                   </div>
 
                   <div className="card p-4 h-full">

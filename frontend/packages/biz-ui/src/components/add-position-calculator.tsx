@@ -147,7 +147,7 @@ export default function AddPositionCalculator({
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between text-[11px] text-muted-foreground"
       >
-        <span>加仓测算{hasHolding ? '' : '（当前空仓 · 建仓测算）'}</span>
+        <span>加仓测算</span>
         <span>{open ? '收起 ▾' : '展开 ▸'}</span>
       </button>
 
