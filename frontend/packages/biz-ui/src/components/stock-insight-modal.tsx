@@ -1389,6 +1389,8 @@ export default function StockInsightModal(props: {
                 <DialogDescription className="hidden md:block">概览、K线、AI建议、新闻、历史分析都在同一弹窗查看</DialogDescription>
               </div>
               <div className="hidden md:flex items-center gap-2">
+                {isOwner && (
+                <>
                 <Button variant="secondary" size="sm" className="h-8 px-2.5" onClick={() => handleExportShareImage()} disabled={imageExporting}>
                   <Download className={`w-3.5 h-3.5 ${imageExporting ? 'animate-pulse' : ''}`} />
                   <span>{imageExporting ? '生成中' : '图片'}</span>
@@ -1397,6 +1399,8 @@ export default function StockInsightModal(props: {
                   <Share2 className="w-3.5 h-3.5" />
                   <span>分享</span>
                 </Button>
+                </>
+                )}
                 <Button variant="secondary" size="sm" className="h-8 px-2.5" onClick={() => handleCopyShareText()}>
                   <Copy className="w-3.5 h-3.5" />
                   <span>复制</span>
@@ -1438,12 +1442,16 @@ export default function StockInsightModal(props: {
               </div>
             </div>
             <div className="flex md:hidden items-center gap-2 mt-2 overflow-x-auto scrollbar-none pb-1 -mb-1">
+              {isOwner && (
+              <>
               <Button variant="secondary" size="sm" className="h-8 px-2.5 shrink-0" onClick={() => handleExportShareImage()} disabled={imageExporting}>
                 <Download className={`w-3.5 h-3.5 ${imageExporting ? 'animate-pulse' : ''}`} />
               </Button>
               <Button variant="secondary" size="sm" className="h-8 px-2.5 shrink-0" onClick={() => handleShareInsight()}>
                 <Share2 className="w-3.5 h-3.5" />
               </Button>
+              </>
+              )}
               <Button variant="secondary" size="sm" className="h-8 px-2.5 shrink-0" onClick={() => handleCopyShareText()}>
                 <Copy className="w-3.5 h-3.5" />
               </Button>
