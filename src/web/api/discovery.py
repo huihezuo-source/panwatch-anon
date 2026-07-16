@@ -362,6 +362,7 @@ async def get_movers(
             "volume": getattr(row, "volume", None),
             "turnover_rate": getattr(row, "turnover_rate", None),
             "volume_ratio": getattr(row, "volume_ratio", None),
+            "industry": getattr(row, "industry", None) or "其他",
             "direction": direction,
         }
         it["tags"] = _movers_tags(it)
@@ -380,10 +381,28 @@ async def get_movers(
     except Exception as e:
         logger.warning(f"movers 解析附加/触发失败(不影响榜单): {type(e).__name__}: {e}")
 
+    # 按行业(f100)分组:组内按绝对涨跌幅降序,组间按「组内股数多→组内最大涨跌幅」排序,
+    # 让最热的板块排前面(仿韭研 端侧AI·9 / 大消费·7 这种)。"其他"永远垫底。
+    groups_map: dict[str, list[dict]] = {}
+    for it in items:
+        groups_map.setdefault(it.get("industry") or "其他", []).append(it)
+    groups = [
+        {"name": name, "count": len(rows), "items": rows}
+        for name, rows in groups_map.items()
+    ]
+
+    def _group_key(g: dict):
+        is_other = g["name"] == "其他"
+        max_abs = max((abs(x.get("change_pct") or 0) for x in g["items"]), default=0)
+        return (is_other, -g["count"], -max_abs)
+
+    groups.sort(key=_group_key)
+
     result = {
         "market": market,
         "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "items": items,
+        "items": items,   # 扁平列表:兼容 + 后台解析生成用
+        "groups": groups,  # 按板块分组:前端展示用
     }
     _cache_set(key, result)
     return result

@@ -44,6 +44,8 @@ export interface MoverItem {
   volume_ratio?: number | null
   direction: 'up' | 'down'
   tags: string[]
+  /** 所属行业(东财 f100),用于分组;缺失时为「其他」 */
+  industry?: string
   /** 连板数(以最新日K为止的连续涨停数);后台按天为 Top N 生成,可能暂缺 */
   streak_count?: number
   limit_ups_20d?: number
@@ -52,10 +54,18 @@ export interface MoverItem {
   analysis_text?: string
 }
 
+export interface MoverGroup {
+  name: string
+  count: number
+  items: MoverItem[]
+}
+
 export interface MoversResponse {
   market: string
   updated_at: string
   items: MoverItem[]
+  /** 按板块(行业)分组,组间按热度排序,「其他」垫底 */
+  groups?: MoverGroup[]
   /** true = 实时源被限流,返回的是稍旧的缓存数据 */
   stale?: boolean
 }

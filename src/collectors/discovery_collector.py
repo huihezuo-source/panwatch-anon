@@ -23,6 +23,8 @@ class HotStock:
     # 异动判定用(东财 f8/f10):换手率、量比。量比>1 说明当前成交较近期均量放大。
     turnover_rate: float | None = None
     volume_ratio: float | None = None
+    # f100 = 所属行业名称(如 电子/医药生物/化工),用于异动榜按板块分组
+    industry: str | None = None
 
 
 @dataclass(frozen=True)
@@ -66,8 +68,8 @@ class EastMoneyDiscoveryCollector:
 
         # mode: turnover=成交额榜(f6降序) | gainers=涨幅榜(f3降序) | losers=跌幅榜(f3升序)
         fid = "f6" if mode == "turnover" else "f3"
-        # f8=换手率, f10=量比(异动判定核心指标),额外带回不影响老调用方
-        fields = "f12,f14,f2,f3,f6,f5,f8,f10"
+        # f8=换手率, f10=量比(异动核心), f100=所属行业(分组用),额外带回不影响老调用方
+        fields = "f12,f14,f2,f3,f6,f5,f8,f10,f100"
         if market == "CN":
             fs = "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23"  # A-share
         elif market == "HK":
@@ -106,6 +108,7 @@ class EastMoneyDiscoveryCollector:
                         volume=it.get("f5"),
                         turnover_rate=it.get("f8"),
                         volume_ratio=it.get("f10"),
+                        industry=(str(it.get("f100")).strip() if it.get("f100") not in (None, "-") else None),
                     )
                 )
             except Exception:
