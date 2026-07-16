@@ -190,6 +190,7 @@ async def ensure_today_insights(items: list[dict], market: str, top_n: int = TOP
 
     db = SessionLocal()
     try:
+        today = _today_str()
         ups = [x for x in items if (x.get("change_pct") or 0) > 0]
         ups.sort(
             key=lambda x: (
@@ -199,8 +200,44 @@ async def ensure_today_insights(items: list[dict], market: str, top_n: int = TOP
             ),
             reverse=True,
         )
+
+        # ── 阶段1:连板快速计算 ───────────────────────────────────────────
+        # 连板只对涨停股有意义,且计算只拉日K(腾讯源,便宜、不被东财限流)。
+        # 所以先给所有涨停股快速算好连板存下来,让「N连板」徽章立刻出现在榜上,
+        # 不必等阶段2 那个又慢又贵的 AI 题材归因(只覆盖 Top N)。
+        limit_up_stocks = [x for x in ups if "涨停" in (x.get("tags") or [])][:35]
+        for it in limit_up_stocks:
+            symbol = it.get("symbol") or ""
+            name = it.get("name") or symbol
+            if not symbol:
+                continue
+            row = (
+                db.query(MoverInsight)
+                .filter(
+                    MoverInsight.stock_symbol == symbol,
+                    MoverInsight.stock_market == market,
+                    MoverInsight.trade_date == today,
+                )
+                .first()
+            )
+            if row and (row.streak_count or 0) >= 1:
+                continue  # 当天连板不变,已算过就跳过
+            streak, ups20 = compute_streak(symbol, market, name)
+            if streak < 1 and ups20 < 1:
+                continue  # 没连板/涨停记录(或K线拉失败),不写脏数据
+            if not row:
+                row = MoverInsight(
+                    stock_symbol=symbol, stock_market=market, trade_date=today
+                )
+                db.add(row)
+            row.stock_name = name
+            row.streak_count = streak
+            row.limit_ups_20d = ups20
+            db.commit()
+            await asyncio.sleep(0.25)  # 对 K线源友好
+
+        # ── 阶段2:AI 题材归因(贵,只覆盖 Top N 最强异动股)──────────────
         targets = ups[:top_n]
-        today = _today_str()
 
         for it in targets:
             symbol = it.get("symbol") or ""
