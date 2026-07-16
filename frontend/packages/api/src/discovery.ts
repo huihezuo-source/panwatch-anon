@@ -60,6 +60,17 @@ export interface MoversResponse {
   stale?: boolean
 }
 
+export interface MoverInsightDetail {
+  symbol: string
+  market: string
+  name: string
+  trade_date: string
+  streak_count: number
+  limit_ups_20d: number
+  analysis_tags: string
+  analysis_text: string
+}
+
 export const discoveryApi = {
   listMovers: (params?: { market?: 'CN' | 'HK' | 'US'; limit?: number }) =>
     fetchAPI<MoversResponse>(
@@ -67,6 +78,12 @@ export const discoveryApi = {
         market: params?.market,
         limit: params?.limit,
       })
+    ),
+
+  /** 取某股当日异动解析(连板+题材归因);无则返回 null */
+  getMoverInsight: (symbol: string, market = 'CN') =>
+    fetchAPI<MoverInsightDetail | null>(
+      withQuery('/discovery/movers/insight', { symbol, market })
     ),
 
   listHotStocks: (params?: {

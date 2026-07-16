@@ -6,9 +6,11 @@ import {
   insightApi,
   stocksApi,
   tradingAgentsApi,
+  discoveryApi,
   type DeepAnalysisResult,
   type HistoryComparisonResponse,
   type ProgressResponse,
+  type MoverInsightDetail,
 } from '@panwatch/api'
 import { getMarketBadge } from '@panwatch/biz-ui'
 import { useLocalStorage } from '@/lib/utils'
@@ -112,7 +114,7 @@ interface PortfolioSummaryResponse {
   }>
 }
 
-type InsightTab = 'overview' | 'kline' | 'suggestions' | 'news' | 'announcements' | 'reports' | 'deep'
+type InsightTab = 'overview' | 'movers' | 'kline' | 'suggestions' | 'news' | 'announcements' | 'reports' | 'deep'
 
 interface StockAgentInfo {
   agent_name: string
@@ -377,6 +379,8 @@ export default function StockInsightModal(props: {
   const [deepLoaded, setDeepLoaded] = useState(false)
   // 打开弹窗时轻量探一下「这只股票有没有深度报告」,让「深度」tab 不点也能显示 (1)
   const [hasDeepReport, setHasDeepReport] = useState(false)
+  // 异动解析(连板 + AI 题材归因):有才显示「解析」tab
+  const [moverInsight, setMoverInsight] = useState<MoverInsightDetail | null>(null)
   const [deepTriggering, setDeepTriggering] = useState(false)
   const [deepProgress, setDeepProgress] = useState<ProgressResponse | null>(null)
   const deepPollRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
@@ -856,6 +860,17 @@ export default function StockInsightModal(props: {
     let cancelled = false
     tradingAgentsApi.getLatestForStock(symbol)
       .then((r) => { if (!cancelled) setHasDeepReport(!!r) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [props.open, symbol, market])
+
+  // 打开弹窗/切股票时,拉当日异动解析(连板+题材归因),有才显示「解析」tab
+  useEffect(() => {
+    if (!props.open || !symbol) { setMoverInsight(null); return }
+    setMoverInsight(null)
+    let cancelled = false
+    discoveryApi.getMoverInsight(symbol, market)
+      .then((r) => { if (!cancelled) setMoverInsight(r) })
       .catch(() => {})
     return () => { cancelled = true }
   }, [props.open, symbol, market])
@@ -1513,6 +1528,8 @@ export default function StockInsightModal(props: {
             <div className="flex items-center gap-1 flex-wrap">
               {[
                 { id: 'overview', label: '概览' },
+                // 异动解析:仅当日异动股有(连板/题材归因),放在概览后面
+                ...(moverInsight ? [{ id: 'movers', label: '解析' }] : []),
                 { id: 'suggestions', label: `建议 (${suggestions.length})` },
                 // 匿名公开版:隐藏「报告」tab(盘前/盘后/新闻定时报告,需配置监控才有)
                 { id: 'deep', label: (deepResult || hasDeepReport) ? '深度 (1)' : '深度' },
@@ -1818,6 +1835,43 @@ export default function StockInsightModal(props: {
                   </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {tab === 'movers' && moverInsight && (
+              <div className="card p-4 space-y-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[13px] font-semibold text-foreground">今日异动解析</span>
+                  {(moverInsight.streak_count ?? 0) >= 2 && (
+                    <span className="rounded border border-rose-500/40 bg-rose-500/15 px-1.5 py-0.5 text-[11px] font-bold text-rose-600">
+                      {moverInsight.streak_count}连板
+                    </span>
+                  )}
+                  {(moverInsight.limit_ups_20d ?? 0) >= 3 && (
+                    <span className="rounded border border-border/40 bg-accent/20 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                      近20日{moverInsight.limit_ups_20d}板
+                    </span>
+                  )}
+                  <span className="text-[11px] text-muted-foreground">{moverInsight.trade_date}</span>
+                </div>
+
+                {moverInsight.analysis_tags ? (
+                  <>
+                    <div className="text-[15px] font-semibold text-foreground">{moverInsight.analysis_tags}</div>
+                    {moverInsight.analysis_text && (
+                      <div className="whitespace-pre-line text-[13px] leading-relaxed text-foreground/90">
+                        {moverInsight.analysis_text}
+                      </div>
+                    )}
+                    <div className="text-[11px] text-muted-foreground/70 pt-1 border-t border-border/40">
+                      本解析由 AI 依据该股近期公开公告 / 新闻自动生成，仅为信息整理，不构成任何投资建议。
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-[12px] text-muted-foreground py-4">
+                    该股今日有连板/异动记录，但暂无足够公开公告新闻生成题材解析。
+                  </div>
+                )}
               </div>
             )}
 

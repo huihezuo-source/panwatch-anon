@@ -389,6 +389,53 @@ async def get_movers(
     return result
 
 
+@router.get("/movers/insight")
+def get_mover_insight(
+    symbol: str,
+    market: str = "CN",
+    db: Session = Depends(get_db),
+):
+    """取某只股票的当日异动解析(连板数 + AI 题材归因)。无则返回 null。
+
+    供个股弹窗「解析」tab 展示完整内容(列表卡片里是截断预览)。
+    """
+    market = _normalize_market(market)
+    try:
+        from src.web.models import MoverInsight
+        from src.core.mover_insights import _today_str
+        row = (
+            db.query(MoverInsight)
+            .filter(
+                MoverInsight.stock_symbol == symbol,
+                MoverInsight.stock_market == market,
+                MoverInsight.trade_date == _today_str(),
+            )
+            .first()
+        )
+    except Exception as e:
+        logger.warning(f"取异动解析失败: {type(e).__name__}: {e}")
+        return None
+    if not row or row.analysis_status != "ok":
+        # 只在有连板数据时返回(即使解析没生成,连板也有参考价值)
+        if row and (row.streak_count or 0) >= 1:
+            return {
+                "symbol": symbol, "market": market, "name": row.stock_name or symbol,
+                "trade_date": row.trade_date,
+                "streak_count": row.streak_count or 0,
+                "limit_ups_20d": row.limit_ups_20d or 0,
+                "analysis_tags": "", "analysis_text": "",
+            }
+        return None
+    return {
+        "symbol": symbol, "market": market, "name": row.stock_name or symbol,
+        "trade_date": row.trade_date,
+        "streak_count": row.streak_count or 0,
+        "limit_ups_20d": row.limit_ups_20d or 0,
+        "analysis_tags": row.analysis_tags or "",
+        "analysis_text": row.analysis_text or "",
+    }
+
+
 @router.get("/boards")
 async def get_hot_boards(
     market: str = "CN",
