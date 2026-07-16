@@ -318,7 +318,9 @@ async def get_movers(
         return cached
 
     proxy = _resolve_proxy() or None
-    collector = EastMoneyDiscoveryCollector(timeout_s=15.0, proxy=proxy, retries=1)
+    # 快速失败:要顺序拉两个榜,必须保证总耗时 < 前端 20s 超时。
+    # 6s×2 = 最坏 12s;拉不到就走过期缓存兜底,不让前端卡到超时。
+    collector = EastMoneyDiscoveryCollector(timeout_s=6.0, proxy=proxy, retries=0)
 
     async def _fetch(mode: str) -> list:
         try:
