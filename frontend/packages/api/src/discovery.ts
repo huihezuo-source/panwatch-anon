@@ -44,6 +44,12 @@ export interface MoverItem {
   volume_ratio?: number | null
   direction: 'up' | 'down'
   tags: string[]
+  /** 连板数(以最新日K为止的连续涨停数);后台按天为 Top N 生成,可能暂缺 */
+  streak_count?: number
+  limit_ups_20d?: number
+  /** AI 题材归因(本站自有原创,来源:该股近期公告+新闻) */
+  analysis_tags?: string
+  analysis_text?: string
 }
 
 export interface MoversResponse {

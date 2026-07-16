@@ -1081,3 +1081,40 @@ class ChatMessage(Base):
     role = Column(String, nullable=False, default="user")  # user/assistant/system
     content = Column(Text, nullable=False, default="")
     created_at = Column(DateTime, server_default=func.now())
+
+
+class MoverInsight(Base):
+    """今日异动个股的自有解析缓存(连板数 + AI 题材归因)。
+
+    为什么要缓存表:
+    - 连板数要拉日K、解析要拉公告+新闻再喂 DeepSeek,都不能在访客请求里同步做
+      (几十只股 = 几十次外部请求,既慢又必被行情源限流)。
+    - 故由后台按天为「Top N 最强异动股」预生成一次,访客只读缓存。
+    唯一键 (stock_symbol, stock_market, trade_date) 保证每股每天只生成一次。
+    """
+
+    __tablename__ = "mover_insights"
+    __table_args__ = (
+        Index("ix_mover_insight_day", "trade_date", "stock_market"),
+        UniqueConstraint(
+            "stock_symbol", "stock_market", "trade_date", name="uq_mover_insight"
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stock_symbol = Column(String, nullable=False, index=True)
+    stock_market = Column(String, nullable=False, default="CN")
+    stock_name = Column(String, default="")
+    trade_date = Column(String, nullable=False)  # YYYY-MM-DD
+
+    # 连板:以最新一根日K为止的连续涨停数(定义明确、可核对);另记近20日涨停次数
+    streak_count = Column(Integer, default=0)
+    limit_ups_20d = Column(Integer, default=0)
+
+    # AI 题材归因(本站自有原创,来源:该股近期公告+新闻)
+    analysis_tags = Column(String, default="")  # 如 "中报预增+功能饮料+跨境电商"
+    analysis_text = Column(Text, default="")  # 2-3 条要点
+    analysis_status = Column(String, default="pending")  # pending/ok/failed
+
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

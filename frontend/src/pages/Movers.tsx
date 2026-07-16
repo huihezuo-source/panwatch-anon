@@ -140,8 +140,14 @@ export default function MoversPage() {
                 </div>
               </div>
 
-              {it.tags?.length > 0 && (
+              {(it.tags?.length > 0 || (it.streak_count ?? 0) >= 2) && (
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {/* 连板徽章:N连板(以最新日K为止的连续涨停数) */}
+                  {(it.streak_count ?? 0) >= 2 && (
+                    <span className="rounded border border-rose-500/40 bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-bold text-rose-600">
+                      {it.streak_count}连板
+                    </span>
+                  )}
                   {it.tags.map((t) => (
                     <span
                       key={t}
@@ -150,6 +156,24 @@ export default function MoversPage() {
                       {t}
                     </span>
                   ))}
+                  {(it.limit_ups_20d ?? 0) >= 3 && (
+                    <span className="rounded border border-border/40 bg-accent/20 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      20日{it.limit_ups_20d}板
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* AI 题材归因(后台按天为 Top N 生成) */}
+              {it.analysis_tags && (
+                <div className="mt-2.5 rounded-lg border border-border/30 bg-accent/10 p-2.5">
+                  <div className="text-[12px] font-medium text-foreground">{it.analysis_tags}</div>
+                  {it.analysis_text && (
+                    <div className="mt-1 whitespace-pre-line text-[11px] leading-relaxed text-muted-foreground line-clamp-4">
+                      {it.analysis_text}
+                    </div>
+                  )}
+                  <div className="mt-1 text-[10px] text-muted-foreground/60">AI 依据公开公告/新闻生成</div>
                 </div>
               )}
 

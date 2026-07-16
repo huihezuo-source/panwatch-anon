@@ -369,6 +369,17 @@ async def get_movers(
 
     # 按异动强度排序:绝对涨跌幅优先
     items.sort(key=lambda x: abs(x.get("change_pct") or 0), reverse=True)
+
+    # 贴上已生成的当日解析(连板数 + AI 题材归因),只读缓存不阻塞请求
+    try:
+        from src.core.mover_insights import attach_cached_insights, ensure_today_insights
+        attach_cached_insights(db, items, market)
+        # 缺解析时后台补生成(fire-and-forget),下次访问就有了。模块内有并发护栏。
+        import asyncio as _aio
+        _aio.create_task(ensure_today_insights(list(items), market))
+    except Exception as e:
+        logger.warning(f"movers 解析附加/触发失败(不影响榜单): {type(e).__name__}: {e}")
+
     result = {
         "market": market,
         "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),

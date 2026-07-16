@@ -24,3 +24,7 @@ COPY src/web/api/stocks.py /app/src/web/api/stocks.py
 COPY src/web/api/chat.py /app/src/web/api/chat.py
 COPY src/web/api/discovery.py /app/src/web/api/discovery.py
 COPY src/collectors/discovery_collector.py /app/src/collectors/discovery_collector.py
+#    models.py         —— 新增 MoverInsight 表(异动解析缓存,启动 create_all 自动建表)
+#    mover_insights.py —— 连板计算 + AI题材归因后台生成
+COPY src/web/models.py /app/src/web/models.py
+COPY src/core/mover_insights.py /app/src/core/mover_insights.py
