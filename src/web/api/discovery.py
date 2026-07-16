@@ -263,6 +263,119 @@ async def get_hot_stocks(
     return data
 
 
+def _price_limit_pct(symbol: str, name: str) -> float:
+    """该股当日涨跌停幅度:创业板/科创板 20%,ST 5%,其余主板 10%。用于准确判定涨停/跌停。"""
+    s = (symbol or "").strip()
+    n = (name or "").upper()
+    if "ST" in n:
+        return 5.0
+    if s.startswith(("300", "301", "688")):
+        return 20.0
+    if s.startswith("8") or s.startswith("4"):  # 北交所
+        return 30.0
+    return 10.0
+
+
+def _movers_tags(item: dict) -> list[str]:
+    """按行情数据给异动打标(纯规则,不调 AI):涨跌停/大涨跌/放量/高换手。"""
+    tags: list[str] = []
+    pct = item.get("change_pct")
+    vr = item.get("volume_ratio")
+    tr = item.get("turnover_rate")
+    limit = _price_limit_pct(item.get("symbol") or "", item.get("name") or "")
+    if isinstance(pct, (int, float)):
+        if pct >= limit - 0.3:
+            tags.append("涨停")
+        elif pct <= -(limit - 0.3):
+            tags.append("跌停")
+        elif pct >= 7:
+            tags.append("大涨")
+        elif pct <= -7:
+            tags.append("大跌")
+    if isinstance(vr, (int, float)) and vr >= 2:
+        tags.append("放量")
+    if isinstance(tr, (int, float)) and tr >= 10:
+        tags.append("高换手")
+    return tags
+
+
+@router.get("/movers")
+async def get_movers(
+    market: str = "CN",
+    limit: int = 20,
+    db: Session = Depends(get_db),
+):
+    """今日异动榜:涨幅榜 + 跌幅榜合并,按规则打标(涨停/放量/高换手等)。
+
+    数据来自公开行情源(东方财富),异动判定为本站自有规则,不依赖任何第三方付费内容。
+    归因解读由前端点进个股后的 AI 建议提供(已有缓存+限流)。
+    """
+    market = _normalize_market(market)
+    limit = max(1, min(int(limit), 50))
+    key = f"movers:{market}:{limit}"
+    cached = _cache_get(key, ttl_s=45)
+    if cached is not None:
+        return cached
+
+    proxy = _resolve_proxy() or None
+    collector = EastMoneyDiscoveryCollector(timeout_s=15.0, proxy=proxy, retries=1)
+
+    async def _fetch(mode: str) -> list:
+        try:
+            return await collector.fetch_hot_stocks(market=market, mode=mode, limit=limit)
+        except Exception as e:
+            logger.warning(f"movers fetch {mode} failed: {type(e).__name__}: {e!r}")
+            return []
+
+    # 注意:东财 push2 不接受并发请求(同时打两个会 502),必须顺序拉。
+    # 有 45s 缓存兜底,顺序多花 1-2s 可接受。
+    gainers = await _fetch("gainers")
+    losers = await _fetch("losers")
+    if not gainers and not losers:
+        # 东财会对高频调用限流(502/302)。此时若有过期缓存,宁可返回稍旧的异动数据,
+        # 也不要把整页打成 503 —— 盘中异动晚几分钟仍有参考价值。
+        stale = _cache.get(key)
+        if stale:
+            logger.warning("movers 实时源不可用,返回过期缓存兜底")
+            data = dict(stale[1]) if isinstance(stale[1], dict) else stale[1]
+            if isinstance(data, dict):
+                data["stale"] = True
+            return data
+        raise HTTPException(503, "异动数据源暂不可用,请稍后再试")
+
+    items: list[dict] = []
+    seen: set[str] = set()
+    for row, direction in [(r, "up") for r in gainers] + [(r, "down") for r in losers]:
+        sym = (getattr(row, "symbol", "") or "").strip()
+        if not sym or sym in seen:
+            continue
+        seen.add(sym)
+        it = {
+            "symbol": sym,
+            "market": market,
+            "name": getattr(row, "name", "") or sym,
+            "price": getattr(row, "price", None),
+            "change_pct": getattr(row, "change_pct", None),
+            "turnover": getattr(row, "turnover", None),
+            "volume": getattr(row, "volume", None),
+            "turnover_rate": getattr(row, "turnover_rate", None),
+            "volume_ratio": getattr(row, "volume_ratio", None),
+            "direction": direction,
+        }
+        it["tags"] = _movers_tags(it)
+        items.append(it)
+
+    # 按异动强度排序:绝对涨跌幅优先
+    items.sort(key=lambda x: abs(x.get("change_pct") or 0), reverse=True)
+    result = {
+        "market": market,
+        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "items": items,
+    }
+    _cache_set(key, result)
+    return result
+
+
 @router.get("/boards")
 async def get_hot_boards(
     market: str = "CN",

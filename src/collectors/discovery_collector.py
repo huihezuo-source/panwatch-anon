@@ -20,6 +20,9 @@ class HotStock:
     change_pct: float | None
     turnover: float | None
     volume: float | None
+    # 异动判定用(东财 f8/f10):换手率、量比。量比>1 说明当前成交较近期均量放大。
+    turnover_rate: float | None = None
+    volume_ratio: float | None = None
 
 
 @dataclass(frozen=True)
@@ -61,8 +64,10 @@ class EastMoneyDiscoveryCollector:
     ) -> list[HotStock]:
         market = (market or "CN").upper()
 
+        # mode: turnover=成交额榜(f6降序) | gainers=涨幅榜(f3降序) | losers=跌幅榜(f3升序)
         fid = "f6" if mode == "turnover" else "f3"
-        fields = "f12,f14,f2,f3,f6,f5"
+        # f8=换手率, f10=量比(异动判定核心指标),额外带回不影响老调用方
+        fields = "f12,f14,f2,f3,f6,f5,f8,f10"
         if market == "CN":
             fs = "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23"  # A-share
         elif market == "HK":
@@ -75,7 +80,8 @@ class EastMoneyDiscoveryCollector:
         params = {
             "pn": 1,
             "pz": max(1, min(int(limit), 100)),
-            "po": 1,
+            # po=1 降序(成交额/涨幅榜);跌幅榜要升序取最跌的,用 po=0
+            "po": 0 if mode == "losers" else 1,
             "np": 1,
             "fltt": 2,
             "invt": 2,
@@ -98,6 +104,8 @@ class EastMoneyDiscoveryCollector:
                         change_pct=it.get("f3"),
                         turnover=it.get("f6"),
                         volume=it.get("f5"),
+                        turnover_rate=it.get("f8"),
+                        volume_ratio=it.get("f10"),
                     )
                 )
             except Exception:

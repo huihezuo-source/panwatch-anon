@@ -13,9 +13,14 @@ RUN rm -rf /app/static
 COPY frontend/dist/ /app/static/
 
 # 2) 后端:覆盖改动过的文件。
-#    app.py     —— 路由拆分公开/仅站长(providers 含 DeepSeek key 保持登录保护)
-#    stocks.py  —— 深度分析同日缓存 + 每 IP 限流 + 本月预算闸
-#    chat.py    —— 问AI/AI助手对匿名开放:send_message 每IP限流 + list 匿名返回空
+#    ⚠️ 改动任何后端文件都必须在这里同步加一行 COPY,否则改动不会进镜像(踩过坑)。
+#    app.py                 —— 路由拆分公开/仅站长(providers 含 DeepSeek key 保持登录保护)
+#    stocks.py              —— 深度分析同日缓存 + 每 IP 限流 + 本月预算闸;AI建议缓存+限流
+#    chat.py                —— 问AI/AI助手对匿名开放:send_message 每IP限流 + list 匿名返回空
+#    discovery.py           —— 今日异动榜(/discovery/movers):涨跌幅榜合并 + 规则打标 + 过期缓存兜底
+#    discovery_collector.py —— 采集器加 换手率(f8)/量比(f10) + 跌幅榜(po=0)
 COPY src/web/app.py /app/src/web/app.py
 COPY src/web/api/stocks.py /app/src/web/api/stocks.py
 COPY src/web/api/chat.py /app/src/web/api/chat.py
+COPY src/web/api/discovery.py /app/src/web/api/discovery.py
+COPY src/collectors/discovery_collector.py /app/src/collectors/discovery_collector.py

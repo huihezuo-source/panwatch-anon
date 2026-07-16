@@ -5,6 +5,7 @@ import { useTheme } from '@/hooks/use-theme'
 import { appApi, fetchAPI, isAuthenticated } from '@panwatch/api'
 import DashboardPage from '@/pages/Dashboard'
 import OpportunitiesPage from '@/pages/Opportunities'
+import MoversPage from '@/pages/Movers'
 import StocksPage from '@/pages/Stocks'
 import AgentsPage from '@/pages/Agents'
 import SettingsPage from '@/pages/Settings'
@@ -26,6 +27,7 @@ const navItems = [
   { to: '/', icon: LayoutDashboard, label: '首页' },
   { to: '/portfolio', icon: List, label: '持仓' },
   { to: '/opportunities', icon: Sparkles, label: '机会' },
+  { to: '/movers', icon: Activity, label: '异动' },
   { to: '/paper-trading', icon: Activity, label: '模拟盘' },
   { to: '/alerts', icon: BellRing, label: '提醒' },
   { to: '/agents', icon: Bot, label: 'Agent' },
@@ -35,7 +37,7 @@ const navItems = [
 ]
 // 匿名公开版:主导航只保留公共功能(首页/机会)。个人/管理项(持仓/模拟盘/提醒/Agent/历史/
 // 数据源/设置)收进「更多」下拉,且整个下拉仅登录站长可见(见下方 isAuthenticated 门控)。
-const PUBLIC_NAV_PATHS = ['/', '/opportunities']
+const PUBLIC_NAV_PATHS = ['/', '/opportunities', '/movers']
 const publicNavItems = navItems.filter((n) => PUBLIC_NAV_PATHS.includes(n.to))
 const adminNavItems = navItems.filter((n) => !PUBLIC_NAV_PATHS.includes(n.to))
 const desktopPrimaryNavItems = publicNavItems
@@ -207,6 +209,7 @@ function App() {
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/opportunities" element={<OpportunitiesPage />} />
+          <Route path="/movers" element={<MoversPage />} />
           <Route path="/portfolio" element={<StocksPage />} />
           <Route path="/agents" element={<AgentsPage />} />
           <Route path="/history" element={<HistoryPage />} />
