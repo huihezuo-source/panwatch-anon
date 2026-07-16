@@ -98,28 +98,41 @@ async def _fetch_context(symbol: str, name: str) -> str:
         return ""
 
     lines: list[str] = []
-    for it in (items or [])[:12]:
+    for it in (items or [])[:15]:
         title = getattr(it, "title", "") or ""
+        content = getattr(it, "content", "") or ""
         pub = getattr(it, "publish_time", "") or ""
-        src = getattr(it, "source", "") or ""
-        if title:
-            lines.append(f"- [{pub}] {title}({src})")
+        if not title and not content:
+            continue
+        # 正文里才有「牛磺酸龙头」「净利3987万」这类关键细节,必须一起喂给 AI。
+        body = content.strip().replace("\n", " ")[:280]
+        block = f"[{pub}] {title}"
+        if body:
+            block += f"\n  正文:{body}"
+        lines.append(block)
     return "\n".join(lines)
 
 
-_PROMPT = """你是 A 股异动解析助手。依据下面给出的材料,客观说明这只股票今天出现异动的可能原因。
+_PROMPT = """你是资深 A 股异动解析师。依据下面材料,详细说明这只股票今天异动的可能原因。要像专业异动复盘一样具体、有信息量。
 
 股票:{name}({symbol})
 今日表现:涨跌幅 {pct}%,量比 {vr},换手率 {tr}%{streak_note}
 
-近期公告与新闻:
+近期公告与新闻(含正文,细节都在正文里,务必仔细读):
 {context}
 
-输出要求:
-1. 第一行只输出「题材标签」,用 + 连接 3-5 个关键词,例如:中报预增+功能饮料+跨境电商。这一行不要写别的字。
-2. 之后输出 2-3 条要点,每条一行,以「1、」「2、」「3、」开头,引用材料里的具体日期和内容。
-3. 只依据上面给出的材料,不得编造。材料不足以解释异动时,题材标签写「暂无明确催化」,要点里如实说明公开信息有限。
-4. 只做事实陈述与归因,不得给出买入/卖出等操作建议,不得预测未来涨跌。"""
+输出格式(严格遵守):
+第一行:只输出「题材标签」,用 + 连接 4-6 个关键词,尽量从正文里挖出行业地位/概念/催化,例如:中报预增+牛磺酸龙头(全球最大)+功能饮料+跨境电商。这一行不写别的。
+之后:输出 3-5 条要点,每条一行,以「1、」「2、」…开头。每条尽量做到:
+  - 带具体日期(如"7月14日公告")
+  - 带具体主体(公司名/收购方/机构名)
+  - 带具体数字(金额/股数/占比/增速/产能等,直接引用正文里的数字)
+  - 说清来龙去脉,而不是一句话带过
+把正文里出现的「行业龙头/全球最大/市占率/产能/主力资金流向」等硬信息都用上。
+
+铁律:
+- 只依据上面材料,数字和事实必须来自材料,绝不编造。材料确实不足时,题材标签写「暂无明确催化」,并在要点里如实说明公开信息有限。
+- 只做事实陈述与归因,不得给出买入/卖出/加仓等操作建议,不得预测未来涨跌,不用"利好""值得关注"等诱导词。"""
 
 
 async def generate_analysis(
@@ -155,7 +168,7 @@ async def generate_analysis(
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     tags = lines[0] if lines else ""
     body = "\n".join(lines[1:]) if len(lines) > 1 else ""
-    return tags[:120], body[:1200], "ok"
+    return tags[:200], body[:2500], "ok"
 
 
 def _today_str() -> str:
