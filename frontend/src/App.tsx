@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import { TrendingUp, Bot, Settings, List, Database, Clock, LayoutDashboard, BellRing, Sparkles, Activity } from 'lucide-react'
 import { useTheme } from '@/hooks/use-theme'
-import { appApi, fetchAPI, isAuthenticated } from '@panwatch/api'
+import { isAuthenticated } from '@panwatch/api'
 import DashboardPage from '@/pages/Dashboard'
 import OpportunitiesPage from '@/pages/Opportunities'
 import MoversPage from '@/pages/Movers'
@@ -20,8 +20,6 @@ import AmbientBackground from '@panwatch/biz-ui/components/AmbientBackground'
 import ChatWidget from '@/components/ChatWidget'
 import AccountMenu from '@/components/AccountMenu'
 import SelfCheckModal from '@/components/SelfCheckModal'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@panwatch/base-ui/components/ui/dialog'
-import { Button } from '@panwatch/base-ui/components/ui/button'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: '首页' },
@@ -48,38 +46,10 @@ const mobileMoreNavItems = adminNavItems
 function App() {
   const { mode, setMode } = useTheme()
   const location = useLocation()
-  const [version, setVersion] = useState('')
   const [logsOpen, setLogsOpen] = useState(false)
   const [selfCheckOpen, setSelfCheckOpen] = useState(false)
-  const [upgradeOpen, setUpgradeOpen] = useState(false)
-  const [upgradeInfo, setUpgradeInfo] = useState<{ latest: string; url: string } | null>(null)
-  const checkedUpdateRef = useRef(false)
-
-  useEffect(() => {
-    appApi.version()
-      .then(data => setVersion(data?.version || ''))
-      .catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    if (checkedUpdateRef.current) return
-    if (!isAuthenticated()) return
-    const current = String(version || '').trim()
-    if (!current || current === 'dev') return
-    checkedUpdateRef.current = true
-
-    fetchAPI<any>('/settings/update-check')
-      .then((res) => {
-        const latest = String(res?.latest_version || '').trim()
-        const shouldOpen = !!res?.update_available && !!latest
-        if (!shouldOpen) return
-        const dismissed = localStorage.getItem('panwatch_upgrade_dismissed_version') || ''
-        if (dismissed === latest) return
-        setUpgradeInfo({ latest, url: String(res?.release_url || 'https://github.com/sunxiao0721/PanWatch/releases') })
-        setUpgradeOpen(true)
-      })
-      .catch(() => {})
-  }, [version])
+  // 已移除「版本升级」提示:那是上游作者镜像的升级检查(指向 sunxiao0721 的 Docker Hub/releases),
+  // 汇合作是自建镜像(git pull + docker build),该提示对站长无意义且会误导,故整体去除。
 
   // 登录页面不显示导航
   if (location.pathname === '/login') {
@@ -223,38 +193,6 @@ function App() {
       <ChatWidget />
       <LogsModal open={logsOpen} onOpenChange={setLogsOpen} />
       <SelfCheckModal open={selfCheckOpen} onClose={() => setSelfCheckOpen(false)} />
-      <Dialog open={upgradeOpen} onOpenChange={setUpgradeOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>发现新版本</DialogTitle>
-            <DialogDescription>
-              当前版本 v{version}，可升级到 v{upgradeInfo?.latest}。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="text-[12px] text-muted-foreground">
-            建议升级以获取最新功能和修复。
-          </div>
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                if (upgradeInfo?.latest) localStorage.setItem('panwatch_upgrade_dismissed_version', upgradeInfo.latest)
-                setUpgradeOpen(false)
-              }}
-            >
-              稍后提醒
-            </Button>
-            <Button
-              onClick={() => {
-                const url = upgradeInfo?.url || 'https://github.com/sunxiao0721/PanWatch/releases'
-                window.open(url, '_blank', 'noopener,noreferrer')
-              }}
-            >
-              去升级
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
     </>
   )
