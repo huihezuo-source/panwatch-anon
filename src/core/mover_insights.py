@@ -167,6 +167,10 @@ async def generate_analysis(
         return "", "", "failed"
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     tags = lines[0] if lines else ""
+    # AI 有时把 prompt 里的字段名也带出来(如"题材标签:电力+..."),或包了书名号,去掉。
+    import re as _re
+    tags = _re.sub(r"^(题材标签|标签|概念)\s*[:：]\s*", "", tags).strip()
+    tags = tags.strip("「」【】").strip()
     body = "\n".join(lines[1:]) if len(lines) > 1 else ""
     return tags[:200], body[:2500], "ok"
 
